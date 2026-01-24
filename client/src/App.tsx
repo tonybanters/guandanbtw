@@ -1,0 +1,259 @@
+import { useCallback, useEffect, useState } from 'react'
+import { use_websocket } from './hooks/use_websocket'
+import { Lobby } from './components/Lobby'
+import { Game } from './components/Game'
+import {
+  Card,
+  Player_Info,
+  Rank,
+  Rank_Two,
+  Message,
+} from './game/types'
+
+interface Deal_Cards_Payload {
+  cards: Card[]
+  level: Rank
+}
+
+interface Room_State_Payload {
+  room_id: string
+  players: Player_Info[]
+  game_active: boolean
+  your_id: string
+}
+
+interface Turn_Payload {
+  player_id: string
+  seat: number
+  can_pass: boolean
+}
+
+interface Play_Made_Payload {
+  player_id: string
+  seat: number
+  cards: Card[]
+  combo_type: string
+  is_pass: boolean
+}
+
+interface Error_Payload {
+  message: string
+}
+
+export default function App() {
+  const ws_url = `ws://${window.location.hostname}:8080/ws`
+  const { connected, send, on } = use_websocket(ws_url)
+
+  const [room_id, set_room_id] = useState<string | null>(null)
+  const [players, set_players] = useState<Player_Info[]>([])
+  const [game_active, set_game_active] = useState(false)
+
+  const [hand, set_hand] = useState<Card[]>([])
+  const [level, set_level] = useState<Rank>(Rank_Two)
+  const [selected_ids, set_selected_ids] = useState<Set<number>>(new Set())
+  const [current_turn, set_current_turn] = useState(0)
+  const [my_seat, set_my_seat] = useState(0)
+  const [can_pass, set_can_pass] = useState(false)
+  const [table_cards, set_table_cards] = useState<Card[]>([])
+  const [combo_type, set_combo_type] = useState('')
+  const [player_card_counts, set_player_card_counts] = useState([27, 27, 27, 27])
+  const [team_levels, set_team_levels] = useState<[number, number]>([0, 0])
+  const [error, set_error] = useState<string | null>(null)
+
+  useEffect(() => {
+    const unsub_room_state = on('room_state', (msg: Message) => {
+      const payload = msg.payload as Room_State_Payload
+      set_room_id(payload.room_id)
+      set_players(payload.players)
+      set_game_active(payload.game_active)
+
+      const me = payload.players.find((p) => p.id === payload.your_id)
+      if (me) {
+        set_my_seat(me.seat)
+      }
+    })
+
+    const unsub_deal = on('deal_cards', (msg: Message) => {
+      const payload = msg.payload as Deal_Cards_Payload
+      set_hand(sort_cards(payload.cards, payload.level))
+      set_level(payload.level)
+      set_game_active(true)
+      set_table_cards([])
+      set_combo_type('')
+      set_selected_ids(new Set())
+      set_player_card_counts([27, 27, 27, 27])
+    })
+
+    const unsub_turn = on('turn', (msg: Message) => {
+      const payload = msg.payload as Turn_Payload
+      set_current_turn(payload.seat)
+      set_can_pass(payload.can_pass)
+    })
+
+    const unsub_play_made = on('play_made', (msg: Message) => {
+      const payload = msg.payload as Play_Made_Payload
+      if (!payload.is_pass) {
+        set_table_cards(payload.cards)
+        set_combo_type(payload.combo_type)
+        set_player_card_counts((prev) => {
+          const next = [...prev]
+          next[payload.seat] -= payload.cards.length
+          return next as [number, number, number, number]
+        })
+        const played_ids = new Set(payload.cards.map((c) => c.Id))
+        set_hand((prev) => prev.filter((c) => !played_ids.has(c.Id)))
+      }
+    })
+
+    const unsub_hand_end = on('hand_end', (msg: Message) => {
+      const payload = msg.payload as { new_levels: [number, number] }
+      set_team_levels(payload.new_levels)
+    })
+
+    const unsub_error = on('error', (msg: Message) => {
+      const payload = msg.payload as Error_Payload
+      set_error(payload.message)
+      setTimeout(() => set_error(null), 3000)
+    })
+
+    return () => {
+      unsub_room_state()
+      unsub_deal()
+      unsub_turn()
+      unsub_play_made()
+      unsub_hand_end()
+      unsub_error()
+    }
+  }, [on])
+
+  const handle_create_room = useCallback(
+    (name: string) => {
+      send({
+        type: 'create_room',
+        payload: { player_name: name },
+      })
+    },
+    [send]
+  )
+
+  const handle_join_room = useCallback(
+    (room_code: string, name: string) => {
+      send({
+        type: 'join_room',
+        payload: { room_id: room_code, player_name: name },
+      })
+    },
+    [send]
+  )
+
+  const handle_card_click = useCallback((id: number) => {
+    set_selected_ids((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
+
+  const handle_play = useCallback(() => {
+    if (selected_ids.size === 0) return
+
+    send({
+      type: 'play_cards',
+      payload: { card_ids: Array.from(selected_ids) },
+    })
+
+    set_selected_ids(new Set())
+  }, [send, selected_ids])
+
+  const handle_pass = useCallback(() => {
+    send({ type: 'pass', payload: {} })
+  }, [send])
+
+  if (!connected) {
+    return (
+      <div style={styles.connecting}>
+        <div>Connecting...</div>
+      </div>
+    )
+  }
+
+  if (!game_active) {
+    return (
+      <>
+        <Lobby
+          room_id={room_id}
+          players={players}
+          on_create_room={handle_create_room}
+          on_join_room={handle_join_room}
+        />
+        {error && <div style={styles.error}>{error}</div>}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <Game
+        hand={hand}
+        level={level}
+        selected_ids={selected_ids}
+        on_card_click={handle_card_click}
+        on_play={handle_play}
+        on_pass={handle_pass}
+        table_cards={table_cards}
+        combo_type={combo_type}
+        current_turn={current_turn}
+        my_seat={my_seat}
+        can_pass={can_pass}
+        player_card_counts={player_card_counts}
+        team_levels={team_levels}
+      />
+      {error && <div style={styles.error}>{error}</div>}
+    </>
+  )
+}
+
+function sort_cards(cards: Card[], level: Rank): Card[] {
+  return [...cards].sort((a, b) => {
+    const va = card_sort_value(a, level)
+    const vb = card_sort_value(b, level)
+    if (va !== vb) return va - vb
+    return a.Suit - b.Suit
+  })
+}
+
+function card_sort_value(card: Card, level: Rank): number {
+  if (card.Rank === 14) return 100
+  if (card.Rank === 13) return 99
+  if (card.Rank === level) return 98
+
+  const base_order = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  return base_order[card.Rank] ?? 0
+}
+
+const styles: Record<string, React.CSSProperties> = {
+  connecting: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    backgroundColor: '#1a1a2e',
+    color: '#fff',
+    fontSize: 24,
+  },
+  error: {
+    position: 'fixed',
+    bottom: 20,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    padding: '12px 24px',
+    backgroundColor: '#dc3545',
+    color: '#fff',
+    borderRadius: 8,
+    zIndex: 1000,
+  },
+}

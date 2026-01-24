@@ -1,0 +1,115 @@
+#+AUTHOR: Tony
+#+STARTUP: overview
+
+* Guan Dan BTW
+A real-time multiplayer web implementation of Guan Dan (掼蛋), a popular Chinese climbing card game for 4 players in 2v2 teams.
+
+[[./assets/guandan.png]]
+
+* Table of Contents :toc:
+- [[#guan-dan-btw][Guan Dan BTW]]
+- [[#features][Features]]
+- [[#installation][Installation]]
+- [[#usage][Usage]]
+- [[#development][Development]]
+- [[#project-structure][Project Structure]]
+- [[#game-rules][Game Rules]]
+- [[#future-plans][Future Plans]]
+- [[#license][License]]
+
+* Features
+- Real-time multiplayer via WebSockets
+- Room-based lobbies (create/join with room code)
+- Full Guan Dan ruleset:
+  - Level system (2 through A)
+  - Wild cards (heart of current level)
+  - Bomb hierarchy (4-10 of a kind, straight flush, 4-joker)
+  - Tribute system between hands
+- Animated card UI with Framer Motion
+
+* Installation
+Requires Go 1.23+ and Node.js 18+.
+
+#+begin_src sh
+git clone https://github.com/tonybanters/guandanbtw
+cd guandanbtw
+nix develop  # or install go, node manually
+#+end_src
+
+* Usage
+Start the server:
+#+begin_src sh
+cd server
+air  # or: go run .
+#+end_src
+
+Start the client:
+#+begin_src sh
+cd client
+npm install
+npm run dev
+#+end_src
+
+Open =http://localhost:5173=, create a room, and share the room code with 3 friends.
+
+* Development
+Using Nix (recommended):
+#+begin_src sh
+nix develop
+#+end_src
+
+Dev shell includes: go, gopls, air, nodejs, typescript.
+
+* Project Structure
+#+begin_src
+server/
+├── main.go               [Entry point, HTTP/WS server]
+├── game/
+│   ├── card.go           [Card types, deck, ranking]
+│   ├── combination.go    [Valid play detection]
+│   ├── bomb.go           [Bomb hierarchy]
+│   └── state.go          [Game state machine]
+├── room/
+│   ├── hub.go            [WebSocket hub, room management]
+│   ├── room.go           [Room logic, game flow]
+│   └── client.go         [Client connection handling]
+└── protocol/
+    └── messages.go       [JSON message types]
+
+client/
+├── src/
+│   ├── App.tsx           [Main app, state management]
+│   ├── components/
+│   │   ├── Card.tsx      [Card component]
+│   │   ├── Hand.tsx      [Player hand]
+│   │   ├── Table.tsx     [Center play area]
+│   │   ├── Lobby.tsx     [Create/join room UI]
+│   │   └── Game.tsx      [Main game layout]
+│   ├── hooks/
+│   │   └── use_websocket.ts
+│   └── game/
+│       └── types.ts      [Shared types]
+└── package.json
+#+end_src
+
+* Game Rules
+- 4 players, 2v2 teams (partners sit opposite)
+- 2 decks + 4 jokers = 108 cards, 27 each
+- Teams race to empty their hands
+- Current level card ranks highest; heart of level is wild
+- Valid plays: singles, pairs, triples, full houses, straights, tubes, plates
+- Bombs beat everything (ranked by size, then straight flush, then 4-joker)
+- Winners advance levels based on finish order
+
+Full rules: [[https://www.pagat.com/climbing/guan_dan.html][pagat.com]]
+
+* Future Plans
+- Tribute UI on frontend
+- Sound effects and better animations
+- Card sorting options
+- Spectator mode
+- Mobile responsive layout
+- Deployment (fly.io/railway)
+
+* License
+[[https://www.gnu.org/licenses/gpl-3.0.en.html][GPL v3]]
