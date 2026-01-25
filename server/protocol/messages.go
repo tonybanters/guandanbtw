@@ -22,6 +22,7 @@ const (
 	Msg_Error         Msg_Type = "error"
 	Msg_Player_Joined Msg_Type = "player_joined"
 	Msg_Player_Left   Msg_Type = "player_left"
+	Msg_Fill_Bots     Msg_Type = "fill_bots"
 )
 
 type Message struct {

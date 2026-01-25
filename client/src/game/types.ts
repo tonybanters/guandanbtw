@@ -74,6 +74,7 @@ export type Msg_Type =
   | 'error'
   | 'player_joined'
   | 'player_left'
+  | 'fill_bots'
 
 export interface Message<T = unknown> {
   type: Msg_Type

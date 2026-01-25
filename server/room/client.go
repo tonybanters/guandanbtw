@@ -17,12 +17,13 @@ const (
 )
 
 type Client struct {
-	id   string
-	name string
-	room *Room
-	conn *websocket.Conn
-	send chan []byte
-	mu   sync.Mutex
+	id     string
+	name   string
+	room   *Room
+	conn   *websocket.Conn
+	send   chan []byte
+	mu     sync.Mutex
+	is_bot bool
 }
 
 func new_client(id string, conn *websocket.Conn) *Client {
@@ -30,6 +31,17 @@ func new_client(id string, conn *websocket.Conn) *Client {
 		id:   id,
 		conn: conn,
 		send: make(chan []byte, 256),
+	}
+}
+
+var bot_names = []string{"Bot Alice", "Bot Bob", "Bot Charlie"}
+
+func new_bot(id string, name string) *Client {
+	return &Client{
+		id:     id,
+		name:   name,
+		send:   make(chan []byte, 256),
+		is_bot: true,
 	}
 }
 
@@ -111,7 +123,16 @@ func (c *Client) handle_message(hub *Hub, msg *protocol.Message) {
 		c.handle_pass()
 	case protocol.Msg_Tribute_Give:
 		c.handle_tribute_give(msg)
+	case protocol.Msg_Fill_Bots:
+		c.handle_fill_bots()
 	}
+}
+
+func (c *Client) handle_fill_bots() {
+	if c.room == nil {
+		return
+	}
+	c.room.fill_bots <- c
 }
 
 func (c *Client) handle_create_room(hub *Hub, msg *protocol.Message) {

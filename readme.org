@@ -25,7 +25,9 @@ A real-time multiplayer web implementation of Guan Dan (掼蛋), a popular Chine
   - Wild cards (heart of current level)
   - Bomb hierarchy (4-10 of a kind, straight flush, 4-joker)
   - Tribute system between hands
-- Animated card UI with Framer Motion
+- Bot players ("Fill with Bots" button for testing)
+- Play log sidebar (track recent plays)
+- Turn/play highlighting (visual feedback for whose turn and who just played)
 
 * Installation
 Requires Go 1.23+ and Node.js 18+.
@@ -33,24 +35,22 @@ Requires Go 1.23+ and Node.js 18+.
 #+begin_src sh
 git clone https://github.com/tonybanters/guandanbtw
 cd guandanbtw
-nix develop  # or install go, node manually
+nix develop
 #+end_src
 
 * Usage
-Start the server:
+Run both server and client:
 #+begin_src sh
-cd server
-air  # or: go run .
+just dev    # or: mprocs
 #+end_src
 
-Start the client:
+Or run separately:
 #+begin_src sh
-cd client
-npm install
-npm run dev
+cd server && air        # go server with hot reload
+cd client && npm run dev  # vite dev server
 #+end_src
 
-Open =http://localhost:5173=, create a room, and share the room code with 3 friends.
+Open =http://localhost:5173=, create a room, and share the room code with 3 friends. Use "Fill with Bots" to test without 4 players.
 
 * Development
 Using Nix (recommended):
@@ -58,7 +58,7 @@ Using Nix (recommended):
 nix develop
 #+end_src
 
-Dev shell includes: go, gopls, air, nodejs, typescript.
+Dev shell includes: go, gopls, air, nodejs, typescript, just, mprocs.
 
 * Project Structure
 #+begin_src

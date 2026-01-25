@@ -1,6 +1,8 @@
 package room
 
 import (
+	"time"
+
 	"guandanbtw/game"
 	"guandanbtw/protocol"
 )
@@ -16,24 +18,28 @@ type Tribute_Action struct {
 }
 
 type Room struct {
-	id      string
-	clients [4]*Client
-	game    *game.Game_State
-	join    chan *Client
-	leave   chan *Client
-	play    chan Play_Action
-	pass    chan *Client
-	tribute chan Tribute_Action
+	id        string
+	clients   [4]*Client
+	game      *game.Game_State
+	join      chan *Client
+	leave     chan *Client
+	play      chan Play_Action
+	pass      chan *Client
+	tribute   chan Tribute_Action
+	fill_bots chan *Client
+	bot_turn  chan int
 }
 
 func new_room(id string) *Room {
 	return &Room{
-		id:      id,
-		join:    make(chan *Client),
-		leave:   make(chan *Client),
-		play:    make(chan Play_Action),
-		pass:    make(chan *Client),
-		tribute: make(chan Tribute_Action),
+		id:        id,
+		join:      make(chan *Client),
+		leave:    make(chan *Client),
+		play:      make(chan Play_Action),
+		pass:      make(chan *Client),
+		tribute:   make(chan Tribute_Action),
+		fill_bots: make(chan *Client),
+		bot_turn:  make(chan int),
 	}
 }
 
@@ -50,6 +56,10 @@ func (r *Room) run() {
 			r.handle_pass(client)
 		case action := <-r.tribute:
 			r.handle_tribute(action)
+		case <-r.fill_bots:
+			r.handle_fill_bots()
+		case seat := <-r.bot_turn:
+			r.handle_bot_turn(seat)
 		}
 	}
 }
@@ -176,9 +186,15 @@ func (r *Room) handle_pass(client *Client) {
 
 	if r.game.Pass_Count >= 3 {
 		r.game.Current_Lead = game.Combination{Type: game.Comb_Invalid}
-		r.game.Current_Turn = r.game.Lead_Player
+		next_leader := r.game.Lead_Player
+		if r.is_finished(next_leader) {
+			teammate := (next_leader + 2) % 4
+			next_leader = teammate
+		}
+		r.game.Current_Turn = next_leader
 		r.game.Pass_Count = 0
 		r.send_turn_notification()
+		r.trigger_bot_turn_if_needed()
 		return
 	}
 
@@ -226,6 +242,7 @@ func (r *Room) handle_tribute(action Tribute_Action) {
 		r.game.Phase = game.Phase_Play
 		r.game.Current_Turn = r.game.Tribute_Leader
 		r.send_turn_notification()
+		r.trigger_bot_turn_if_needed()
 	}
 }
 
@@ -255,6 +272,7 @@ func (r *Room) start_game() {
 	r.game.Phase = game.Phase_Play
 	r.game.Current_Turn = 0
 	r.send_turn_notification()
+	r.trigger_bot_turn_if_needed()
 }
 
 func (r *Room) check_hand_end() bool {
@@ -403,6 +421,7 @@ func (r *Room) start_new_hand() {
 	r.game.Phase = game.Phase_Play
 	r.game.Current_Turn = r.game.Tribute_Leader
 	r.send_turn_notification()
+	r.trigger_bot_turn_if_needed()
 }
 
 func (r *Room) advance_turn() {
@@ -411,6 +430,7 @@ func (r *Room) advance_turn() {
 		if !r.is_finished(next) {
 			r.game.Current_Turn = next
 			r.send_turn_notification()
+			r.trigger_bot_turn_if_needed()
 			return
 		}
 	}
@@ -523,4 +543,169 @@ func seats_to_ids(seats []int, clients [4]*Client) []string {
 		}
 	}
 	return ids
+}
+
+func (r *Room) handle_fill_bots() {
+	bot_idx := 0
+	for i := 0; i < 4; i++ {
+		if r.clients[i] == nil && bot_idx < len(bot_names) {
+			bot := new_bot(generate_id(), bot_names[bot_idx])
+			bot.room = r
+			r.clients[i] = bot
+			bot_idx++
+		}
+	}
+
+	r.broadcast_room_state()
+
+	if r.is_full() {
+		r.start_game()
+	}
+}
+
+func (r *Room) handle_bot_turn(seat int) {
+	if r.game == nil || r.game.Current_Turn != seat {
+		return
+	}
+
+	client := r.clients[seat]
+	if client == nil || !client.is_bot {
+		return
+	}
+
+	time.Sleep(1500 * time.Millisecond)
+
+	hand := r.game.Hands[seat]
+	if len(hand) == 0 {
+		return
+	}
+
+	if r.game.Current_Lead.Type != game.Comb_Invalid {
+		lead_team := r.game.Lead_Player % 2
+		bot_team := seat % 2
+		if lead_team == bot_team {
+			r.handle_pass(client)
+			return
+		}
+
+		play := r.find_lowest_valid_play(seat)
+		if play == nil {
+			r.handle_pass(client)
+			return
+		}
+
+		r.handle_play(Play_Action{
+			client:   client,
+			card_ids: play,
+		})
+		return
+	}
+
+	card_ids := []int{hand[0].Id}
+	r.handle_play(Play_Action{
+		client:   client,
+		card_ids: card_ids,
+	})
+}
+
+func (r *Room) find_lowest_valid_play(seat int) []int {
+	hand := r.game.Hands[seat]
+	lead := r.game.Current_Lead
+
+	sorted_hand := make([]game.Card, len(hand))
+	copy(sorted_hand, hand)
+	for i := 0; i < len(sorted_hand)-1; i++ {
+		for j := i + 1; j < len(sorted_hand); j++ {
+			vi := game.Card_Value(sorted_hand[i], r.game.Level)
+			vj := game.Card_Value(sorted_hand[j], r.game.Level)
+			if vi > vj {
+				sorted_hand[i], sorted_hand[j] = sorted_hand[j], sorted_hand[i]
+			}
+		}
+	}
+
+	if lead.Type == game.Comb_Single {
+		for _, card := range sorted_hand {
+			combo := game.Detect_Combination([]game.Card{card}, r.game.Level)
+			if game.Can_Beat(combo, lead) {
+				return []int{card.Id}
+			}
+		}
+	}
+
+	if lead.Type == game.Comb_Pair {
+		rank_cards := make(map[game.Rank][]game.Card)
+		for _, card := range sorted_hand {
+			rank_cards[card.Rank] = append(rank_cards[card.Rank], card)
+		}
+
+		var valid_pairs [][]game.Card
+		for _, cards := range rank_cards {
+			if len(cards) >= 2 {
+				combo := game.Detect_Combination(cards[:2], r.game.Level)
+				if game.Can_Beat(combo, lead) {
+					valid_pairs = append(valid_pairs, cards[:2])
+				}
+			}
+		}
+
+		if len(valid_pairs) > 0 {
+			lowest := valid_pairs[0]
+			lowest_val := game.Card_Value(lowest[0], r.game.Level)
+			for _, pair := range valid_pairs[1:] {
+				val := game.Card_Value(pair[0], r.game.Level)
+				if val < lowest_val {
+					lowest = pair
+					lowest_val = val
+				}
+			}
+			return []int{lowest[0].Id, lowest[1].Id}
+		}
+	}
+
+	if lead.Type == game.Comb_Triple {
+		rank_cards := make(map[game.Rank][]game.Card)
+		for _, card := range sorted_hand {
+			rank_cards[card.Rank] = append(rank_cards[card.Rank], card)
+		}
+
+		var valid_triples [][]game.Card
+		for _, cards := range rank_cards {
+			if len(cards) >= 3 {
+				combo := game.Detect_Combination(cards[:3], r.game.Level)
+				if game.Can_Beat(combo, lead) {
+					valid_triples = append(valid_triples, cards[:3])
+				}
+			}
+		}
+
+		if len(valid_triples) > 0 {
+			lowest := valid_triples[0]
+			lowest_val := game.Card_Value(lowest[0], r.game.Level)
+			for _, triple := range valid_triples[1:] {
+				val := game.Card_Value(triple[0], r.game.Level)
+				if val < lowest_val {
+					lowest = triple
+					lowest_val = val
+				}
+			}
+			return []int{lowest[0].Id, lowest[1].Id, lowest[2].Id}
+		}
+	}
+
+	return nil
+}
+
+func (r *Room) trigger_bot_turn_if_needed() {
+	if r.game == nil {
+		return
+	}
+
+	seat := r.game.Current_Turn
+	client := r.clients[seat]
+	if client != nil && client.is_bot {
+		go func() {
+			r.bot_turn <- seat
+		}()
+	}
 }

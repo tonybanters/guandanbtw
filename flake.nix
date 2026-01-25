@@ -22,9 +22,19 @@
           pkgs.nodePackages.typescript
           pkgs.nodePackages.typescript-language-server
           pkgs.just
+          pkgs.mprocs
         ];
         shellHook = ''
           export PS1="(guandan-dev) $PS1"
+          echo ""
+          echo "  guandan-dev"
+          echo "  -----------"
+          echo "  just dev      - run server + client"
+          echo "  just server   - run go server only"
+          echo "  just client   - run react client only"
+          echo "  just build    - build for production"
+          echo "  mprocs        - run with TUI"
+          echo ""
         '';
       };
     });

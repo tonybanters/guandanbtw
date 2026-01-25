@@ -1,0 +1,7 @@
+procs:
+  server:
+    cmd: ["air"]
+    cwd: "server"
+  client:
+    cmd: ["npm", "run", "dev"]
+    cwd: "client"

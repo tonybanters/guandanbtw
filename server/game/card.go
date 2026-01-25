@@ -109,6 +109,10 @@ func card_value(card Card, level Rank) int {
 	return rank_value(card.Rank, level)
 }
 
+func Card_Value(card Card, level Rank) int {
+	return rank_value(card.Rank, level)
+}
+
 func Is_Wild(card Card, level Rank) bool {
 	return card.Suit == Suit_Hearts && card.Rank == level
 }
