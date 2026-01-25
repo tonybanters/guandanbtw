@@ -38,11 +38,12 @@ func is_four_joker_bomb(cards []Card) bool {
 	black_count := 0
 
 	for _, c := range cards {
-		if c.Rank == Rank_Red_Joker {
+		switch c.Rank {
+		case Rank_Red_Joker:
 			red_count++
-		} else if c.Rank == Rank_Black_Joker {
+		case Rank_Black_Joker:
 			black_count++
-		} else {
+		default:
 			return false
 		}
 	}

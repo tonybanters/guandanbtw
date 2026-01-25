@@ -7,9 +7,10 @@ interface Lobby_Props {
   players: Player_Info[]
   on_create_room: (name: string) => void
   on_join_room: (room_id: string, name: string) => void
+  on_fill_bots: () => void
 }
 
-export function Lobby({ room_id, players, on_create_room, on_join_room }: Lobby_Props) {
+export function Lobby({ room_id, players, on_create_room, on_join_room, on_fill_bots }: Lobby_Props) {
   const [name, set_name] = useState('')
   const [join_code, set_join_code] = useState('')
   const [mode, set_mode] = useState<'select' | 'create' | 'join'>('select')
@@ -65,6 +66,15 @@ export function Lobby({ room_id, players, on_create_room, on_join_room }: Lobby_
               )
             })}
           </div>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={on_fill_bots}
+            style={{ ...styles.button, backgroundColor: '#ff9800', marginBottom: 16 }}
+          >
+            Fill with Bots
+          </motion.button>
 
           <p style={styles.hint}>Share room code with friends to join</p>
         </motion.div>

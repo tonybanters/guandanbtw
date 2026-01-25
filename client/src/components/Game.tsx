@@ -1,8 +1,15 @@
 import { motion } from 'framer-motion'
-import { Card as Card_Type, Rank, get_rank_symbol } from '../game/types'
+import { Card as Card_Type, Rank, get_rank_symbol, get_suit_symbol, is_red_suit, Suit_Joker, Rank_Red_Joker } from '../game/types'
 import { Hand } from './Hand'
 import { Table } from './Table'
 import { Card_Back } from './Card'
+
+interface Play_Log_Entry {
+  seat: number
+  cards: Card_Type[]
+  combo_type: string
+  is_pass: boolean
+}
 
 interface Game_Props {
   hand: Card_Type[]
@@ -18,6 +25,9 @@ interface Game_Props {
   can_pass: boolean
   player_card_counts: number[]
   team_levels: [number, number]
+  play_log: Play_Log_Entry[]
+  players_map: Record<number, string>
+  last_play_seat: number | null
 }
 
 export function Game({
@@ -34,6 +44,9 @@ export function Game({
   can_pass,
   player_card_counts,
   team_levels,
+  play_log,
+  players_map,
+  last_play_seat,
 }: Game_Props) {
   const is_my_turn = current_turn === my_seat
   const relative_positions = get_relative_positions(my_seat)
@@ -50,40 +63,47 @@ export function Game({
         </div>
       </div>
 
-      <div style={styles.game_area}>
-        <div style={styles.opponent_top}>
-          <Opponent_Hand
-            count={player_card_counts[relative_positions.top]}
-            is_turn={current_turn === relative_positions.top}
-            seat={relative_positions.top}
-          />
-        </div>
-
-        <div style={styles.middle_row}>
-          <div style={styles.opponent_side}>
+      <div style={styles.main_layout}>
+        <div style={styles.game_area}>
+          <div style={styles.opponent_top}>
             <Opponent_Hand
-              count={player_card_counts[relative_positions.left]}
-              is_turn={current_turn === relative_positions.left}
-              seat={relative_positions.left}
-              vertical
+              count={player_card_counts[relative_positions.top]}
+              is_turn={current_turn === relative_positions.top}
+              just_played={last_play_seat === relative_positions.top}
+              seat={relative_positions.top}
+              name={players_map[relative_positions.top]}
             />
           </div>
 
-          <div style={styles.table_area}>
-            <Table cards={table_cards} level={level} combo_type={combo_type} />
-          </div>
+          <div style={styles.middle_row}>
+            <div style={styles.opponent_side}>
+              <Opponent_Hand
+                count={player_card_counts[relative_positions.left]}
+                is_turn={current_turn === relative_positions.left}
+                just_played={last_play_seat === relative_positions.left}
+                seat={relative_positions.left}
+                vertical
+                name={players_map[relative_positions.left]}
+              />
+            </div>
 
-          <div style={styles.opponent_side}>
+            <div style={styles.table_area}>
+              <Table cards={table_cards} level={level} combo_type={combo_type} last_play_seat={last_play_seat} />
+            </div>
+
+            <div style={styles.opponent_side}>
             <Opponent_Hand
               count={player_card_counts[relative_positions.right]}
               is_turn={current_turn === relative_positions.right}
+              just_played={last_play_seat === relative_positions.right}
               seat={relative_positions.right}
               vertical
+              name={players_map[relative_positions.right]}
             />
           </div>
-        </div>
+          </div>
 
-        <div style={styles.my_area}>
+          <div style={styles.my_area}>
           <Hand
             cards={hand}
             level={level}
@@ -96,10 +116,10 @@ export function Game({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={on_play}
-              disabled={!is_my_turn || selected_ids.size === 0}
+              disabled={!is_my_turn || selected_ids.size === 0 || hand.length === 0}
               style={{
                 ...styles.action_button,
-                backgroundColor: is_my_turn && selected_ids.size > 0 ? '#28a745' : '#444',
+                backgroundColor: is_my_turn && selected_ids.size > 0 && hand.length > 0 ? '#28a745' : '#444',
               }}
             >
               Play
@@ -108,17 +128,17 @@ export function Game({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={on_pass}
-              disabled={!is_my_turn || !can_pass}
+              disabled={!is_my_turn || !can_pass || hand.length === 0}
               style={{
                 ...styles.action_button,
-                backgroundColor: is_my_turn && can_pass ? '#dc3545' : '#444',
+                backgroundColor: is_my_turn && can_pass && hand.length > 0 ? '#dc3545' : '#444',
               }}
             >
               Pass
             </motion.button>
           </div>
 
-          {is_my_turn && (
+          {is_my_turn && hand.length > 0 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -127,6 +147,44 @@ export function Game({
               Your turn!
             </motion.div>
           )}
+          {hand.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              style={{ ...styles.turn_indicator, backgroundColor: '#28a745' }}
+            >
+              You finished!
+            </motion.div>
+          )}
+          </div>
+        </div>
+
+        <div style={styles.play_log}>
+          <div style={styles.play_log_title}>Play Log</div>
+          {play_log.map((entry, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              style={styles.play_log_entry}
+            >
+              <span style={{ color: entry.seat % 2 === 0 ? '#2196f3' : '#e91e63', fontWeight: 'bold' }}>
+                {players_map[entry.seat] || `Seat ${entry.seat + 1}`}:
+              </span>{' '}
+              {entry.is_pass ? (
+                <span style={{ color: '#888' }}>Pass</span>
+              ) : (
+                <span>
+                  {entry.cards.map((c, j) => (
+                    <span key={j} style={{ color: c.Suit === Suit_Joker ? (c.Rank === Rank_Red_Joker ? '#dc3545' : '#000') : is_red_suit(c.Suit) ? '#dc3545' : '#000' }}>
+                      {get_rank_symbol(c.Rank)}{get_suit_symbol(c.Suit)}{j < entry.cards.length - 1 ? ' ' : ''}
+                    </span>
+                  ))}
+                  {entry.combo_type && <span style={{ color: '#888', marginLeft: 4 }}>({entry.combo_type})</span>}
+                </span>
+              )}
+            </motion.div>
+          ))}
         </div>
       </div>
     </div>
@@ -136,13 +194,21 @@ export function Game({
 interface Opponent_Hand_Props {
   count: number
   is_turn: boolean
+  just_played?: boolean
   seat: number
   vertical?: boolean
+  name?: string
 }
 
-function Opponent_Hand({ count, is_turn, seat, vertical }: Opponent_Hand_Props) {
+function Opponent_Hand({ count, is_turn, just_played, seat, vertical, name }: Opponent_Hand_Props) {
   const display_count = Math.min(count, 10)
   const overlap = vertical ? 15 : 20
+
+  const get_highlight_style = () => {
+    if (just_played) return { backgroundColor: 'rgba(76, 175, 80, 0.3)', border: '2px solid #4caf50' }
+    if (is_turn) return { backgroundColor: 'rgba(255,193,7,0.2)', border: '2px solid #ffc107' }
+    return { backgroundColor: 'transparent', border: '2px solid transparent' }
+  }
 
   return (
     <div
@@ -152,9 +218,9 @@ function Opponent_Hand({ count, is_turn, seat, vertical }: Opponent_Hand_Props) 
         alignItems: 'center',
         gap: 8,
         padding: 8,
-        backgroundColor: is_turn ? 'rgba(255,193,7,0.2)' : 'transparent',
         borderRadius: 8,
-        border: is_turn ? '2px solid #ffc107' : '2px solid transparent',
+        transition: 'all 0.2s ease',
+        ...get_highlight_style(),
       }}
     >
       <div
@@ -182,7 +248,7 @@ function Opponent_Hand({ count, is_turn, seat, vertical }: Opponent_Hand_Props) 
         ))}
       </div>
       <div style={{ color: '#fff', fontSize: 12 }}>
-        Seat {seat + 1}: {count}
+        {name || `Seat ${seat + 1}`}: {count}
       </div>
     </div>
   )
@@ -278,5 +344,31 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#000',
     borderRadius: 8,
     fontWeight: 'bold',
+  },
+  main_layout: {
+    display: 'flex',
+    flex: 1,
+    overflow: 'hidden',
+  },
+  play_log: {
+    width: 220,
+    backgroundColor: '#16213e',
+    padding: 12,
+    overflowY: 'auto',
+    borderLeft: '2px solid #333',
+  },
+  play_log_title: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottom: '1px solid #333',
+  },
+  play_log_entry: {
+    fontSize: 12,
+    color: '#fff',
+    padding: '6px 0',
+    borderBottom: '1px solid rgba(255,255,255,0.1)',
   },
 }

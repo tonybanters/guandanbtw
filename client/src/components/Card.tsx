@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Card as Card_Type, get_suit_symbol, get_rank_symbol, is_red_suit, is_wild, Rank, Rank_Black_Joker, Rank_Red_Joker, Suit_Joker } from '../game/types'
+import { Card as Card_Type, get_suit_symbol, get_rank_symbol, is_red_suit, is_wild, Rank, Rank_Red_Joker, Suit_Joker } from '../game/types'
 
 interface Card_Props {
   card: Card_Type
