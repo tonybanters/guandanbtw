@@ -41,7 +41,7 @@ interface Error_Payload {
 }
 
 export default function App() {
-  const ws_url = `ws://${window.location.hostname}:8080/ws`
+  const ws_url = import.meta.env.VITE_WS_URL
   const { connected, send, on } = use_websocket(ws_url)
 
   const [room_id, set_room_id] = useState<string | null>(null)
