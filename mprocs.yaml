@@ -2,6 +2,8 @@ procs:
   server:
     cmd: ["air"]
     cwd: "server"
+    env:
+      PORT: "8081"
   client:
     cmd: ["npm", "run", "dev"]
     cwd: "client"

@@ -1,15 +1,9 @@
 import { motion } from 'framer-motion'
-import { Card as Card_Type, Rank, get_rank_symbol, get_suit_symbol, is_red_suit, Suit_Joker, Rank_Red_Joker } from '../game/types'
+import { Card as Card_Type, Rank, get_rank_symbol } from '../game/types'
 import { Hand } from './Hand'
 import { Table } from './Table'
 import { Card_Back } from './Card'
-
-interface Play_Log_Entry {
-  seat: number
-  cards: Card_Type[]
-  combo_type: string
-  is_pass: boolean
-}
+import { use_is_mobile } from '../hooks/use_is_mobile'
 
 interface Game_Props {
   hand: Card_Type[]
@@ -25,7 +19,6 @@ interface Game_Props {
   can_pass: boolean
   player_card_counts: number[]
   team_levels: [number, number]
-  play_log: Play_Log_Entry[]
   players_map: Record<number, string>
   last_play_seat: number | null
 }
@@ -44,12 +37,93 @@ export function Game({
   can_pass,
   player_card_counts,
   team_levels,
-  play_log,
   players_map,
   last_play_seat,
 }: Game_Props) {
   const is_my_turn = current_turn === my_seat
   const relative_positions = get_relative_positions(my_seat)
+  const is_mobile = use_is_mobile()
+
+  if (is_mobile) {
+    return (
+      <div style={mobile_styles.container}>
+        <div style={mobile_styles.info_bar}>
+          <div style={mobile_styles.level_badge}>
+            Lvl: {get_rank_symbol(level)}
+          </div>
+          <div style={mobile_styles.team_scores}>
+            <span style={{ color: '#2196f3' }}>T1: {get_rank_symbol(team_levels[0] as Rank)}</span>
+            <span style={{ marginLeft: 8, color: '#e91e63' }}>T2: {get_rank_symbol(team_levels[1] as Rank)}</span>
+          </div>
+        </div>
+
+        <Mobile_Opponent_Bar
+          positions={relative_positions}
+          player_card_counts={player_card_counts}
+          current_turn={current_turn}
+          last_play_seat={last_play_seat}
+          players_map={players_map}
+        />
+
+        <div style={mobile_styles.table_area}>
+          <Table cards={table_cards} level={level} combo_type={combo_type} last_play_seat={last_play_seat} />
+        </div>
+
+        <div style={mobile_styles.my_area}>
+          <Hand
+            cards={hand}
+            level={level}
+            selected_ids={selected_ids}
+            on_card_click={on_card_click}
+          />
+
+          <div style={mobile_styles.actions}>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={on_play}
+              disabled={!is_my_turn || selected_ids.size === 0 || hand.length === 0}
+              style={{
+                ...mobile_styles.action_button,
+                backgroundColor: is_my_turn && selected_ids.size > 0 && hand.length > 0 ? '#28a745' : '#444',
+              }}
+            >
+              Play
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={on_pass}
+              disabled={!is_my_turn || !can_pass || hand.length === 0}
+              style={{
+                ...mobile_styles.action_button,
+                backgroundColor: is_my_turn && can_pass && hand.length > 0 ? '#dc3545' : '#444',
+              }}
+            >
+              Pass
+            </motion.button>
+          </div>
+
+          {is_my_turn && hand.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              style={mobile_styles.turn_indicator}
+            >
+              Your turn!
+            </motion.div>
+          )}
+          {hand.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              style={{ ...mobile_styles.turn_indicator, backgroundColor: '#28a745' }}
+            >
+              You finished!
+            </motion.div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={styles.container}>
@@ -158,35 +232,46 @@ export function Game({
           )}
           </div>
         </div>
-
-        <div style={styles.play_log}>
-          <div style={styles.play_log_title}>Play Log</div>
-          {play_log.map((entry, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              style={styles.play_log_entry}
-            >
-              <span style={{ color: entry.seat % 2 === 0 ? '#2196f3' : '#e91e63', fontWeight: 'bold' }}>
-                {players_map[entry.seat] || `Seat ${entry.seat + 1}`}:
-              </span>{' '}
-              {entry.is_pass ? (
-                <span style={{ color: '#888' }}>Pass</span>
-              ) : (
-                <span>
-                  {entry.cards.map((c, j) => (
-                    <span key={j} style={{ color: c.Suit === Suit_Joker ? (c.Rank === Rank_Red_Joker ? '#dc3545' : '#000') : is_red_suit(c.Suit) ? '#dc3545' : '#000' }}>
-                      {get_rank_symbol(c.Rank)}{get_suit_symbol(c.Suit)}{j < entry.cards.length - 1 ? ' ' : ''}
-                    </span>
-                  ))}
-                  {entry.combo_type && <span style={{ color: '#888', marginLeft: 4 }}>({entry.combo_type})</span>}
-                </span>
-              )}
-            </motion.div>
-          ))}
-        </div>
       </div>
+    </div>
+  )
+}
+
+interface Mobile_Opponent_Bar_Props {
+  positions: { top: number; left: number; right: number }
+  player_card_counts: number[]
+  current_turn: number
+  last_play_seat: number | null
+  players_map: Record<number, string>
+}
+
+function Mobile_Opponent_Bar({ positions, player_card_counts, current_turn, last_play_seat, players_map }: Mobile_Opponent_Bar_Props) {
+  const opponents = [positions.left, positions.top, positions.right]
+
+  return (
+    <div style={mobile_styles.opponent_bar}>
+      {opponents.map((seat) => {
+        const is_turn = current_turn === seat
+        const just_played = last_play_seat === seat
+
+        return (
+          <div
+            key={seat}
+            style={{
+              ...mobile_styles.opponent_chip,
+              backgroundColor: just_played ? 'rgba(76, 175, 80, 0.3)' : is_turn ? 'rgba(255,193,7,0.3)' : 'rgba(255,255,255,0.1)',
+              borderColor: just_played ? '#4caf50' : is_turn ? '#ffc107' : 'transparent',
+            }}
+          >
+            <span style={{ color: seat % 2 === 0 ? '#2196f3' : '#e91e63', fontWeight: 'bold', fontSize: 12 }}>
+              {players_map[seat] || `P${seat + 1}`}
+            </span>
+            <span style={{ color: '#fff', fontSize: 11, marginLeft: 4 }}>
+              ({player_card_counts[seat]})
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -268,45 +353,52 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     height: '100vh',
     backgroundColor: '#0f3460',
+    overflow: 'hidden',
   },
   info_bar: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '12px 24px',
+    padding: '8px 12px',
     backgroundColor: '#16213e',
+    flexShrink: 0,
   },
   level_badge: {
-    padding: '8px 16px',
+    padding: '6px 12px',
     backgroundColor: '#ffc107',
     color: '#000',
     borderRadius: 8,
     fontWeight: 'bold',
+    fontSize: 14,
   },
   team_scores: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
   },
   game_area: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    padding: 20,
+    padding: 8,
+    minHeight: 0,
   },
   opponent_top: {
     display: 'flex',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 8,
+    flexShrink: 0,
   },
   middle_row: {
     flex: 1,
     display: 'flex',
     alignItems: 'center',
+    minHeight: 0,
   },
   opponent_side: {
-    width: 120,
+    width: 80,
     display: 'flex',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   table_area: {
     flex: 1,
@@ -314,61 +406,130 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 16,
-    margin: '0 20px',
+    borderRadius: 12,
+    margin: '0 8px',
+    minHeight: 120,
   },
   my_area: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: 8,
     borderTop: '2px solid #333',
+    flexShrink: 0,
   },
   actions: {
     display: 'flex',
-    gap: 16,
-    marginTop: 16,
+    gap: 12,
+    marginTop: 8,
   },
   action_button: {
-    padding: '12px 32px',
-    fontSize: 16,
+    padding: '10px 24px',
+    fontSize: 14,
     border: 'none',
     borderRadius: 8,
     color: '#fff',
     cursor: 'pointer',
   },
   turn_indicator: {
-    marginTop: 12,
-    padding: '8px 16px',
+    marginTop: 8,
+    padding: '6px 12px',
     backgroundColor: '#ffc107',
     color: '#000',
     borderRadius: 8,
     fontWeight: 'bold',
+    fontSize: 12,
   },
   main_layout: {
     display: 'flex',
     flex: 1,
     overflow: 'hidden',
+    minHeight: 0,
   },
-  play_log: {
-    width: 220,
+}
+
+const mobile_styles: Record<string, React.CSSProperties> = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100dvh',
+    backgroundColor: '#0f3460',
+    overflow: 'hidden',
+  },
+  info_bar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '6px 10px',
     backgroundColor: '#16213e',
-    padding: 12,
-    overflowY: 'auto',
-    borderLeft: '2px solid #333',
+    flexShrink: 0,
   },
-  play_log_title: {
-    color: '#fff',
-    fontSize: 14,
+  level_badge: {
+    padding: '4px 8px',
+    backgroundColor: '#ffc107',
+    color: '#000',
+    borderRadius: 6,
     fontWeight: 'bold',
-    marginBottom: 12,
-    paddingBottom: 8,
-    borderBottom: '1px solid #333',
-  },
-  play_log_entry: {
     fontSize: 12,
+  },
+  team_scores: {
     color: '#fff',
-    padding: '6px 0',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
+    fontSize: 11,
+  },
+  opponent_bar: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: 8,
+    padding: '8px 4px',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    flexShrink: 0,
+  },
+  opponent_chip: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '6px 10px',
+    borderRadius: 16,
+    border: '2px solid transparent',
+  },
+  table_area: {
+    flex: 1,
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 8,
+    margin: 8,
+    minHeight: 100,
+  },
+  my_area: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 8,
+    borderTop: '2px solid #333',
+    flexShrink: 0,
+  },
+  actions: {
+    display: 'flex',
+    gap: 16,
+    marginTop: 4,
+  },
+  action_button: {
+    padding: '10px 28px',
+    fontSize: 14,
+    border: 'none',
+    borderRadius: 8,
+    color: '#fff',
+    cursor: 'pointer',
+  },
+  turn_indicator: {
+    marginTop: 6,
+    padding: '4px 10px',
+    backgroundColor: '#ffc107',
+    color: '#000',
+    borderRadius: 6,
+    fontWeight: 'bold',
+    fontSize: 11,
   },
 }

@@ -1,5 +1,6 @@
 import { Card as Card_Type, Rank } from '../game/types'
 import { Card } from './Card'
+import { use_is_mobile } from '../hooks/use_is_mobile'
 
 interface Table_Props {
   cards: Card_Type[]
@@ -9,8 +10,9 @@ interface Table_Props {
 }
 
 export function Table({ cards, level, combo_type, last_play_seat }: Table_Props) {
-  const card_width = 70
-  const overlap = 40
+  const is_mobile = use_is_mobile()
+  const card_width = is_mobile ? 56 : 70
+  const overlap = is_mobile ? 32 : 40
   const show_highlight = last_play_seat !== null && last_play_seat !== undefined && cards.length > 0
 
   return (
@@ -20,8 +22,8 @@ export function Table({ cards, level, combo_type, last_play_seat }: Table_Props)
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 180,
-        padding: 20,
+        minHeight: is_mobile ? 100 : 180,
+        padding: is_mobile ? 8 : 20,
         borderRadius: 12,
         transition: 'background-color 0.2s ease, box-shadow 0.2s ease',
         backgroundColor: show_highlight ? 'rgba(76, 175, 80, 0.15)' : 'transparent',
@@ -33,7 +35,7 @@ export function Table({ cards, level, combo_type, last_play_seat }: Table_Props)
           display: 'flex',
           position: 'relative',
           width: cards.length > 0 ? card_width + (cards.length - 1) * overlap : 100,
-          height: 100,
+          height: is_mobile ? 80 : 100,
           justifyContent: 'center',
         }}
       >
@@ -52,6 +54,7 @@ export function Table({ cards, level, combo_type, last_play_seat }: Table_Props)
                 level={level}
                 selected={false}
                 on_click={() => {}}
+                size={is_mobile ? 'small' : 'normal'}
               />
             </div>
           ))
@@ -62,7 +65,7 @@ export function Table({ cards, level, combo_type, last_play_seat }: Table_Props)
               alignItems: 'center',
               justifyContent: 'center',
               color: '#666',
-              fontSize: 14,
+              fontSize: is_mobile ? 12 : 14,
               opacity: 0.5,
             }}
           >
@@ -73,12 +76,12 @@ export function Table({ cards, level, combo_type, last_play_seat }: Table_Props)
       {combo_type && (
         <div
           style={{
-            marginTop: 12,
-            padding: '4px 12px',
+            marginTop: is_mobile ? 6 : 12,
+            padding: is_mobile ? '3px 8px' : '4px 12px',
             backgroundColor: '#333',
             color: '#fff',
             borderRadius: 4,
-            fontSize: 12,
+            fontSize: is_mobile ? 10 : 12,
             textTransform: 'uppercase',
           }}
         >

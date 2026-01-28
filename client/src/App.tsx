@@ -59,7 +59,6 @@ export default function App() {
   const [player_card_counts, set_player_card_counts] = useState([27, 27, 27, 27])
   const [team_levels, set_team_levels] = useState<[number, number]>([0, 0])
   const [error, set_error] = useState<string | null>(null)
-  const [play_log, set_play_log] = useState<Array<{ seat: number; cards: Card[]; combo_type: string; is_pass: boolean }>>([])
   const [players_map, set_players_map] = useState<Record<number, string>>({})
   const [last_play_seat, set_last_play_seat] = useState<number | null>(null)
 
@@ -90,7 +89,6 @@ export default function App() {
       set_combo_type('')
       set_selected_ids(new Set())
       set_player_card_counts([27, 27, 27, 27])
-      set_play_log([])
     })
 
     const unsub_turn = on('turn', (msg: Message) => {
@@ -101,16 +99,6 @@ export default function App() {
 
     const unsub_play_made = on('play_made', (msg: Message) => {
       const payload = msg.payload as Play_Made_Payload
-
-      set_play_log((prev) => {
-        const next = [...prev, {
-          seat: payload.seat,
-          cards: payload.cards || [],
-          combo_type: payload.combo_type || '',
-          is_pass: payload.is_pass,
-        }]
-        return next.slice(-8)
-      })
 
       set_last_play_seat(payload.seat)
       setTimeout(() => set_last_play_seat(null), 800)
@@ -239,7 +227,6 @@ export default function App() {
         can_pass={can_pass}
         player_card_counts={player_card_counts}
         team_levels={team_levels}
-        play_log={play_log}
         players_map={players_map}
         last_play_seat={last_play_seat}
       />

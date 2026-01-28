@@ -4,9 +4,15 @@ import (
 	"guandanbtw/room"
 	"log"
 	"net/http"
+	"os"
 )
 
 func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	hub := room.New_Hub()
 	go hub.Run()
 
@@ -14,6 +20,6 @@ func main() {
 
 	http.Handle("/", http.FileServer(http.Dir("../client/dist")))
 
-	log.Println("server starting on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("server starting on :" + port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

@@ -2,10 +2,14 @@ default:
     @just --list
 
 dev:
-    just --parallel server client
+    #!/usr/bin/env bash
+    trap 'kill 0' EXIT
+    just server &
+    just client &
+    wait
 
 server:
-    cd server && air
+    cd server && PORT=8081 air
 
 client:
     cd client && npm run dev

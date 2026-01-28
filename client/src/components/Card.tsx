@@ -1,17 +1,26 @@
 import { motion } from 'framer-motion'
 import { Card as Card_Type, get_suit_symbol, get_rank_symbol, is_red_suit, is_wild, Rank, Rank_Red_Joker, Suit_Joker } from '../game/types'
 
+type Card_Size = 'small' | 'normal'
+
 interface Card_Props {
   card: Card_Type
   level: Rank
   selected: boolean
   on_click: () => void
+  size?: Card_Size
 }
 
-export function Card({ card, level, selected, on_click }: Card_Props) {
+const SIZE_CONFIG = {
+  small: { width: 56, height: 80, rank_font: 14, suit_font: 16, center_font: 20, corner_rank: 12, corner_suit: 10 },
+  normal: { width: 70, height: 100, rank_font: 16, suit_font: 18, center_font: 24, corner_rank: 14, corner_suit: 12 },
+}
+
+export function Card({ card, level, selected, on_click, size = 'normal' }: Card_Props) {
   const is_joker = card.Suit === Suit_Joker
   const is_red = is_joker ? card.Rank === Rank_Red_Joker : is_red_suit(card.Suit)
   const is_wild_card = is_wild(card, level)
+  const cfg = SIZE_CONFIG[size]
 
   return (
     <motion.div
@@ -23,8 +32,8 @@ export function Card({ card, level, selected, on_click }: Card_Props) {
       whileHover={{ scale: 1.08 }}
       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
       style={{
-        width: 70,
-        height: 100,
+        width: cfg.width,
+        height: cfg.height,
         backgroundColor: is_wild_card ? '#fff3cd' : '#fff',
         border: is_wild_card ? '3px solid #ffc107' : '2px solid #333',
         borderRadius: 8,
@@ -45,8 +54,8 @@ export function Card({ card, level, selected, on_click }: Card_Props) {
         alignItems: 'center',
         lineHeight: 1,
       }}>
-        <span style={{ fontSize: 16, fontWeight: 'bold' }}>{is_joker ? (card.Rank === Rank_Red_Joker ? 'R' : 'B') : get_rank_symbol(card.Rank)}</span>
-        <span style={{ fontSize: 18 }}>{is_joker ? '🃏' : get_suit_symbol(card.Suit)}</span>
+        <span style={{ fontSize: cfg.rank_font, fontWeight: 'bold' }}>{is_joker ? (card.Rank === Rank_Red_Joker ? 'R' : 'B') : get_rank_symbol(card.Rank)}</span>
+        <span style={{ fontSize: cfg.suit_font }}>{is_joker ? '🃏' : get_suit_symbol(card.Suit)}</span>
       </div>
       <div style={{
         position: 'absolute',
@@ -58,15 +67,15 @@ export function Card({ card, level, selected, on_click }: Card_Props) {
         lineHeight: 1,
         transform: 'rotate(180deg)',
       }}>
-        <span style={{ fontSize: 14 }}>{is_joker ? (card.Rank === Rank_Red_Joker ? 'R' : 'B') : get_rank_symbol(card.Rank)}</span>
-        <span style={{ fontSize: 12 }}>{is_joker ? '🃏' : get_suit_symbol(card.Suit)}</span>
+        <span style={{ fontSize: cfg.corner_rank }}>{is_joker ? (card.Rank === Rank_Red_Joker ? 'R' : 'B') : get_rank_symbol(card.Rank)}</span>
+        <span style={{ fontSize: cfg.corner_suit }}>{is_joker ? '🃏' : get_suit_symbol(card.Suit)}</span>
       </div>
       <div style={{
         position: 'absolute',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        fontSize: is_joker ? 28 : 24,
+        fontSize: is_joker ? cfg.center_font + 4 : cfg.center_font,
       }}>
         {is_joker ? '🃏' : get_suit_symbol(card.Suit)}
       </div>
@@ -74,12 +83,18 @@ export function Card({ card, level, selected, on_click }: Card_Props) {
   )
 }
 
-export function Card_Back() {
+interface Card_Back_Props {
+  size?: Card_Size
+}
+
+export function Card_Back({ size = 'normal' }: Card_Back_Props) {
+  const cfg = SIZE_CONFIG[size]
+
   return (
     <div
       style={{
-        width: 70,
-        height: 100,
+        width: cfg.width,
+        height: cfg.height,
         backgroundColor: '#1e3a5f',
         border: '2px solid #0d1b2a',
         borderRadius: 8,
@@ -89,7 +104,7 @@ export function Card_Back() {
         backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.1) 5px, rgba(255,255,255,0.1) 10px)',
       }}
     >
-      <div style={{ color: '#fff', fontSize: 24 }}>🀄</div>
+      <div style={{ color: '#fff', fontSize: size === 'small' ? 20 : 24 }}>🀄</div>
     </div>
   )
 }
