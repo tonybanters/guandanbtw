@@ -20,3 +20,11 @@ build:
 
 install:
     cd client && npm install
+
+deploy:
+    #!/usr/bin/env bash
+    cd /www/sites/guandanbtw
+    sudo git fetch
+    sudo git merge origin/master
+    just build
+    sudo systemctl restart guandanbtw
